@@ -1,0 +1,11 @@
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\bin\Debug\ImageToText.exe.config
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\bin\Debug\ImageToText.exe
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\bin\Debug\ImageToText.pdb
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.csprojAssemblyReference.cache
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.Form1.resources
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.Properties.Resources.resources
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.csproj.GenerateResource.cache
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.csproj.CoreCompileInputs.cache
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.exe
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.pdb
+E:\Shite\Dissertation\ImageToText\ImageToText\ImageToText\obj\Debug\ImageToText.TextForm.resources
