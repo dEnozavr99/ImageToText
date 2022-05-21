@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
 using System.Text;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -14,10 +15,17 @@ namespace ImageToText
     public partial class Form1 : Form
     {
         Bitmap loadedImage;
+        List<Bitmap> loadedImageList = new List<Bitmap>();
+        List<string> textList = new List<string>();
+        List<string> textNames = new List<string>();
+
         int maxQuantizationLevel;
         int currentQuantizationLevel = 16;
-        string[] char_text;
+
+
         string text;
+
+        bool multiple;
 
         public Form1()
         {
@@ -27,14 +35,23 @@ namespace ImageToText
             comboBox2.SelectedIndex = 0;
             CalculateMaxQuantizationLevel();
         }
-
-        private void button1_Click(object sender, EventArgs e)
+        private void loadImage(string filename)
         {
+            loadedImage = new Bitmap(filename);
+
+            pictureBox1.Image = loadedImage;
+            button2.Enabled = true;
+        }
+
+        private void handleOpenedFile(bool multiple, bool isTextFile, Func<string, bool> fileHandler)
+        {
+            string imageFilesFilter = "Image Files(*.BMP;*.JPG;*.PNG)|*.BMP;*.JPG;*.PNG|All files (*.*)|*.*";
+            string textFilesFilter = "Text Files(*.TXT)|*.TXT|ALL files (*.*)|*.*";
 
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.InitialDirectory = "c:\\";
-                openFileDialog.Filter = "Image Files(*.BMP;*.JPG;*.PNG)|*.BMP;*.JPG;*.PNG|All files (*.*)|*.*";
+                openFileDialog.Filter = isTextFile ? textFilesFilter : imageFilesFilter;
                 openFileDialog.FilterIndex = 2;
                 openFileDialog.RestoreDirectory = true;
 
@@ -42,10 +59,39 @@ namespace ImageToText
                 {
                     if (openFileDialog.FileName != "")
                     {
-                        loadedImage = new Bitmap(openFileDialog.FileName);
+                        // fileHandler(openFileDialog.FileName, multiple);
+                    }
+                }
+            }
+        }
+        private void button1_Click(object sender, EventArgs e)
+        {
+            ClearData();
+            multiple = false;
+            string imageFilesFilter = "Image Files(*.BMP;*.JPG;*.PNG)|*.BMP;*.JPG;*.PNG|All files (*.*)|*.*";
+            string textFilesFilter = "Text Files(*.TXT)|*.TXT|ALL files (*.*)|*.*";
+            bool isTextFile = false;
 
-                        pictureBox1.Image = loadedImage;
-                        button2.Enabled = true;
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.InitialDirectory = "c:\\";
+                openFileDialog.Filter = isTextFile ? textFilesFilter : imageFilesFilter;
+                openFileDialog.FilterIndex = 2;
+                openFileDialog.RestoreDirectory = true;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    if (openFileDialog.FileName != "")
+                    {
+                        if (isTextFile)
+                        {
+                            //TODO: add textHandler
+                        }
+                        else
+                        {
+                            loadImage(openFileDialog.FileName);
+                        }
+                        loadedImage = new Bitmap(openFileDialog.FileName);
                     }
                 }
             }
@@ -87,6 +133,44 @@ namespace ImageToText
 
         private void button2_Click(object sender, EventArgs e)
         {
+            if (multiple)
+            {
+                foreach (Bitmap image in loadedImageList)
+                {
+                    textList.Add(String.Join(" ", ReadImage(image)));
+                }
+            }
+            else
+            {
+                text = String.Join(" ", ReadImage(loadedImage));
+                button3.Enabled = true;
+            }
+
+            button4.Enabled = true;
+        }
+
+        string[] ReadImage(Bitmap loadedImage)
+        {
+            int ii = loadedImage.Width;
+            int jj = loadedImage.Height;
+            int size = ii * jj;
+            var char_text = new string[size];
+
+            for (int i = 0; i < ii; i++)
+            {
+                for (int j = 0; j < jj; j++)
+                {
+                    Color color = loadedImage.GetPixel(i, j);
+                    //MessageBox.Show(color.R.ToString() + " " + color.G.ToString() + " " + color.B.ToString());
+
+                    char_text[i + jj * j] = GetPixel(color.R, color.G, color.B, comboBox1.SelectedIndex);
+                }
+            }
+            return char_text;
+        }
+
+        string[] ReadImage2(Bitmap loadedImage)
+        {
             int ii = loadedImage.Width;
             int jj = loadedImage.Height;
 
@@ -95,27 +179,26 @@ namespace ImageToText
             bool horizontal = (comboBox2.SelectedIndex == 0);
             int pixel_value = comboBox1.SelectedIndex;
             int size = img_data.Height * img_data.Width;
-            char_text = new string[size];
+            var char_text = new string[size];
 
             unsafe
             {
-                byte* ptr = (byte * )img_data.Scan0;
+                byte* ptr = (byte*)img_data.Scan0;
                 byte* current_byte;
 
-                Parallel.For(0, size, (k) =>
+                //Parallel.For(0, size, (k) =>
+                for (int k = 0; k < size; k++)
                 {
                     if (horizontal)
                         current_byte = ptr + k * bytes_per_pixel;
                     else current_byte = ptr + (k % jj) * ii + (k % ii);
+                    MessageBox.Show("R: " + current_byte[0].ToString() + "G: " + current_byte[1].ToString() + "B :" + current_byte[2]);
                     char_text[k] = GetPixel(current_byte[0], current_byte[1], current_byte[2], pixel_value);
-                });
+                };
             }
 
             loadedImage.UnlockBits(img_data);
-
-            text = String.Join(" ", char_text);
-            button3.Enabled = true;
-            button4.Enabled = true;
+            return char_text;
         }
 
         private void button2222_Click(object sender, EventArgs e)
@@ -125,7 +208,7 @@ namespace ImageToText
             int jj = loadedImage.Height;
 
             int sum = ii * jj;
-            char_text = new string[sum];
+            string[] char_text = new string[sum];
             int i = 0, j = 0;
 
             bool horizontal = (comboBox2.SelectedIndex == 0);
@@ -196,7 +279,7 @@ namespace ImageToText
                         break;
                     }
             }
-            int quantized_value = (int)Math.Floor(pixel_value / currentQuantizationLevel);
+            int quantized_value = (int)Math.Floor(pixel_value * currentQuantizationLevel / maxQuantizationLevel);
             return quantized_value.ToString();
         }
 
@@ -208,19 +291,83 @@ namespace ImageToText
 
         private void button4_Click(object sender, EventArgs e)
         {
-            using (SaveFileDialog dialog = new SaveFileDialog())
+            if (!multiple)
             {
-                dialog.Filter = "Text|*.txt";
-                dialog.Title = "Save an Text File";
-                dialog.ShowDialog();
-                if (dialog.FileName != "" )
+                using (SaveFileDialog dialog = new SaveFileDialog())
                 {
-                    System.IO.StreamWriter file = new System.IO.StreamWriter(dialog.FileName);
-                    file.WriteLine(text);
+                    dialog.Filter = "Text|*.txt";
+                    dialog.Title = "Save an Text File";
+                    dialog.ShowDialog();
+                    if (dialog.FileName != "")
+                    {
+                        System.IO.StreamWriter file = new System.IO.StreamWriter(dialog.FileName);
+                        file.WriteLine(text);
 
-                    file.Close();
+                        file.Close();
+                    }
                 }
             }
+            else
+            {
+                using (FolderBrowserDialog folderBrowserDialog1 = new FolderBrowserDialog())
+                {
+                    int i = 0;
+                    if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
+                    {
+                        var folder = folderBrowserDialog1.SelectedPath;
+                        foreach (string current_text in textList)
+                        {
+                            System.IO.StreamWriter file = new System.IO.StreamWriter(folder + "/" + textNames[i] + ".txt");
+                            file.WriteLine(current_text);
+
+                            file.Close();
+                            i++;
+                        }
+
+                    }
+                }
+            }
+
+
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            ClearData();
+            multiple = true;
+            using (FolderBrowserDialog folderBrowserDialog1 = new FolderBrowserDialog())
+            {
+                if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
+                {
+                    var folder = folderBrowserDialog1.SelectedPath;
+
+                    foreach (var file in Directory.GetFiles(folder))
+                    {
+                        textNames.Add(Path.GetFileNameWithoutExtension(file));
+                        if (Path.GetExtension(file) == ".jpg" || Path.GetExtension(file) == ".bmp" || Path.GetExtension(file) == ".png")
+                        {
+                            loadedImageList.Add(new Bitmap(file));
+                        }
+                    }
+                }
+            }
+            button2.Enabled = true;
+            button3.Enabled = false;
+        }
+
+        void ClearData()
+        {
+            loadedImageList.Clear();
+            loadedImage = null;
+            pictureBox1.Image = null;
+            text = "";
+            textList.Clear();
+            textNames.Clear();
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }
