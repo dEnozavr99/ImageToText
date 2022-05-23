@@ -9,6 +9,8 @@ using System.Text;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Text.RegularExpressions;
+
 
 namespace ImageToText
 {
@@ -42,27 +44,53 @@ namespace ImageToText
             pictureBox1.Image = loadedImage;
             button2.Enabled = true;
         }
-
-        private void handleOpenedFile(bool multiple, bool isTextFile, Func<string, bool> fileHandler)
+        private void loadText(string filename)
         {
-            string imageFilesFilter = "Image Files(*.BMP;*.JPG;*.PNG)|*.BMP;*.JPG;*.PNG|All files (*.*)|*.*";
-            string textFilesFilter = "Text Files(*.TXT)|*.TXT|ALL files (*.*)|*.*";
+            string pattern = @"(?<width>\d+)x{1}(?<height>\d+)";
+            Regex regex = new Regex(pattern);
+            Match match = regex.Match(filename);
+            int width = Convert.ToInt32(match.Groups["width"].Value);
+            int height = Convert.ToInt32(match.Groups["height"].Value);
 
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            int[,] pixelValues = new int[width, height];
+            string[] imageDataLines = File.ReadAllLines(filename);
+            int[] pixelValuesFromFile = Array.ConvertAll(imageDataLines[0].Split(' '), str => Convert.ToInt32(str));
+
+            int counter = 0;
+            for (int i = 0; i < width; i++)
             {
-                openFileDialog.InitialDirectory = "c:\\";
-                openFileDialog.Filter = isTextFile ? textFilesFilter : imageFilesFilter;
-                openFileDialog.FilterIndex = 2;
-                openFileDialog.RestoreDirectory = true;
-
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                for (int j = 0; j < height; j++)
                 {
-                    if (openFileDialog.FileName != "")
-                    {
-                        // fileHandler(openFileDialog.FileName, multiple);
-                    }
+                    pixelValues[i, j] = pixelValuesFromFile[counter++];
                 }
             }
+
+            int maxValue = pixelValues.Cast<int>().Max();
+
+            Bitmap bitmap = new Bitmap(width, height);
+
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    Color color;
+
+                    if (pixelValues[x, y] == maxValue)
+                    {
+                        color = Color.Red;
+                    }
+                    else
+                    {
+                        int value = (int)Math.Floor((double)(pixelValues[x, y] * maxQuantizationLevel / currentQuantizationLevel));
+
+                        color = Color.FromArgb(value, value, value);
+                    }
+
+                    bitmap.SetPixel(x, y, color);
+                }
+            }
+
+            pictureBox1.Image = bitmap;
         }
         private void button1_Click(object sender, EventArgs e)
         {
@@ -85,13 +113,12 @@ namespace ImageToText
                     {
                         if (isTextFile)
                         {
-                            //TODO: add textHandler
+                            loadText(openFileDialog.FileName);
                         }
                         else
                         {
                             loadImage(openFileDialog.FileName);
                         }
-                        loadedImage = new Bitmap(openFileDialog.FileName);
                     }
                 }
             }
@@ -155,6 +182,7 @@ namespace ImageToText
             int jj = loadedImage.Height;
             int size = ii * jj;
             var char_text = new string[size];
+            int counter = 0;
 
             for (int i = 0; i < ii; i++)
             {
@@ -163,9 +191,11 @@ namespace ImageToText
                     Color color = loadedImage.GetPixel(i, j);
                     //MessageBox.Show(color.R.ToString() + " " + color.G.ToString() + " " + color.B.ToString());
 
-                    char_text[i + jj * j] = GetPixel(color.R, color.G, color.B, comboBox1.SelectedIndex);
+                    char_text[counter++] = GetPixel(color.R, color.G, color.B, comboBox1.SelectedIndex);
                 }
             }
+
+            Console.WriteLine(counter.ToString());
             return char_text;
         }
 
@@ -280,6 +310,10 @@ namespace ImageToText
                     }
             }
             int quantized_value = (int)Math.Floor(pixel_value * currentQuantizationLevel / maxQuantizationLevel);
+            if (quantized_value.ToString() == null)
+            {
+                throw new Exception("Value is null");
+            }
             return quantized_value.ToString();
         }
 
@@ -367,7 +401,34 @@ namespace ImageToText
 
         private void button6_Click(object sender, EventArgs e)
         {
+            ClearData();
+            multiple = false;
+            string imageFilesFilter = "Image Files(*.BMP;*.JPG;*.PNG)|*.BMP;*.JPG;*.PNG|All files (*.*)|*.*";
+            string textFilesFilter = "Text Files(*.TXT)|*.TXT|ALL files (*.*)|*.*";
+            bool isTextFile = true;
 
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.InitialDirectory = "c:\\";
+                openFileDialog.Filter = isTextFile ? textFilesFilter : imageFilesFilter;
+                openFileDialog.FilterIndex = 2;
+                openFileDialog.RestoreDirectory = true;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    if (openFileDialog.FileName != "")
+                    {
+                        if (isTextFile)
+                        {
+                            loadText(openFileDialog.FileName);
+                        }
+                        else
+                        {
+                            loadImage(openFileDialog.FileName);
+                        }
+                    }
+                }
+            }
         }
     }
 }
