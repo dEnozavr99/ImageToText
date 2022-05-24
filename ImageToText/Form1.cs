@@ -10,7 +10,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Text.RegularExpressions;
-
+using System.Windows.Controls;
 
 namespace ImageToText
 {
@@ -24,6 +24,21 @@ namespace ImageToText
         int maxQuantizationLevel;
         int currentQuantizationLevel = 16;
 
+        public enum Directions { Horizontal = 'H', Vertical = 'V' };
+        public enum ColorScheme { Red = 'R', Green = 'G', Blue = 'B', Monochrome = 'M'};
+        public struct Dimensions
+        {
+            public int Width { get; set; }
+            public int Height { get; set; }
+        };
+        public struct FileNameParsedData
+        {
+            public string Name { get; set; }
+            public Directions Direction { get; set; }
+            public ColorScheme ColorScheme { get; set; }
+            public Dimensions Dimensions { get; set; }
+
+        };
 
         string text;
 
@@ -43,47 +58,76 @@ namespace ImageToText
 
             pictureBox1.Image = loadedImage;
             button2.Enabled = true;
+            label6.Text = Path.GetFileNameWithoutExtension(filename);
+        }
+        private FileNameParsedData parseFileName(string filename)
+        {
+            string pattern = @"(?<name>\w+)_(?<direction>H|V)_(?<color>[RGBM]{1})_(?<width>\d+)x{1}(?<height>\d+)";
+            Regex regex = new Regex(pattern);
+            Match match = regex.Match(filename);
+
+            FileNameParsedData parsedData = new FileNameParsedData();
+            parsedData.Name = match.Groups["name"].Value;
+            parsedData.Direction = (Directions)Convert.ToChar(match.Groups["direction"].Value);
+            parsedData.ColorScheme = (ColorScheme)Convert.ToChar(match.Groups["color"].Value);
+
+            Dimensions parsedDimensions = new Dimensions();
+            parsedDimensions.Width = Convert.ToInt32(match.Groups["width"].Value);
+            parsedDimensions.Height = Convert.ToInt32(match.Groups["height"].Value);
+            parsedData.Dimensions = parsedDimensions;
+
+            return parsedData;
         }
         private void loadText(string filename)
         {
-            string pattern = @"(?<width>\d+)x{1}(?<height>\d+)";
+            // FileName_H/V_WxH.txt
+            // FileName_H/V_R/G/B/M_WxH.txt
+            string pattern = @"(?<name>\w+)_(?<direction>H|V)_(?<color>[RGBM]{1})_(?<width>\d+)x{1}(?<height>\d+)";
             Regex regex = new Regex(pattern);
             Match match = regex.Match(filename);
-            int width = Convert.ToInt32(match.Groups["width"].Value);
-            int height = Convert.ToInt32(match.Groups["height"].Value);
 
-            int[,] pixelValues = new int[width, height];
+            FileNameParsedData fileNameData = parseFileName(filename);
+
+            int[,] pixelValues = new int[fileNameData.Dimensions.Width, fileNameData.Dimensions.Height];
             string[] imageDataLines = File.ReadAllLines(filename);
             int[] pixelValuesFromFile = Array.ConvertAll(imageDataLines[0].Split(' '), str => Convert.ToInt32(str));
 
             int counter = 0;
-            for (int i = 0; i < width; i++)
+            for (int i = 0; i < fileNameData.Dimensions.Width; i++)
             {
-                for (int j = 0; j < height; j++)
+                for (int j = 0; j < fileNameData.Dimensions.Height; j++)
                 {
                     pixelValues[i, j] = pixelValuesFromFile[counter++];
                 }
             }
 
-            int maxValue = pixelValues.Cast<int>().Max();
+            Bitmap bitmap = new Bitmap(fileNameData.Dimensions.Width, fileNameData.Dimensions.Height);
 
-            Bitmap bitmap = new Bitmap(width, height);
-
-            for (int x = 0; x < width; x++)
+            for (int x = 0; x < fileNameData.Dimensions.Width; x++)
             {
-                for (int y = 0; y < height; y++)
+                for (int y = 0; y < fileNameData.Dimensions.Height; y++)
                 {
                     Color color;
+                    int value = 
+                        (int)Math.Floor((double)(pixelValues[x, y] * maxQuantizationLevel / currentQuantizationLevel));
 
-                    if (pixelValues[x, y] == maxValue)
+                    switch (fileNameData.ColorScheme)
                     {
-                        color = Color.Red;
-                    }
-                    else
-                    {
-                        int value = (int)Math.Floor((double)(pixelValues[x, y] * maxQuantizationLevel / currentQuantizationLevel));
-
-                        color = Color.FromArgb(value, value, value);
+                        case ColorScheme.Red:
+                            color = Color.FromArgb(value, 0, 0);
+                            break;
+                        case ColorScheme.Green:
+                            color = Color.FromArgb(0, value, 0);
+                            break;
+                        case ColorScheme.Blue:
+                            color = Color.FromArgb(0, 0, value);
+                            break;
+                        case ColorScheme.Monochrome:
+                            color = Color.FromArgb(value, value, value);
+                            break;
+                        default:
+                            color = Color.FromArgb(value, value, value);
+                            break;
                     }
 
                     bitmap.SetPixel(x, y, color);
@@ -310,10 +354,7 @@ namespace ImageToText
                     }
             }
             int quantized_value = (int)Math.Floor(pixel_value * currentQuantizationLevel / maxQuantizationLevel);
-            if (quantized_value.ToString() == null)
-            {
-                throw new Exception("Value is null");
-            }
+
             return quantized_value.ToString();
         }
 
@@ -321,6 +362,41 @@ namespace ImageToText
         {
             TextForm text_form = new TextForm(text);
             text_form.Show();
+        }
+        private string colorSchemeComboBoxParser(int activeIndex)
+        {
+            string colorSchema = "";
+
+            switch (activeIndex)
+            {
+                case 0:
+                    colorSchema = "R";
+                    break;
+                case 1:
+                    colorSchema = "G";
+                    break;
+                case 2:
+                    colorSchema = "B";
+                    break;
+                default:
+                    colorSchema = "M";
+                    break;
+            }
+
+            return colorSchema;
+        }
+        private string buildFileName(string filename)
+        {
+            // FileName_H/V_WxH.txt
+            // FileName_H/V_R/G/B/M_WxH.txt
+            bool isHorizontal = comboBox2.SelectedIndex == 0;
+            string directionString = isHorizontal ? "H" : "V";
+            string dimensionsString = isHorizontal 
+                ? $"{loadedImage.Width}x{loadedImage.Height}" 
+                : $"{loadedImage.Height}x{loadedImage.Width}";
+            string colorSchema = colorSchemeComboBoxParser(comboBox1.SelectedIndex);
+
+            return $"{filename}_{directionString}_{colorSchema}_{dimensionsString}.txt";
         }
 
         private void button4_Click(object sender, EventArgs e)
@@ -331,7 +407,9 @@ namespace ImageToText
                 {
                     dialog.Filter = "Text|*.txt";
                     dialog.Title = "Save an Text File";
+                    dialog.FileName = buildFileName(label6.Text);
                     dialog.ShowDialog();
+
                     if (dialog.FileName != "")
                     {
                         System.IO.StreamWriter file = new System.IO.StreamWriter(dialog.FileName);
